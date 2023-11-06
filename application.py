@@ -1,4 +1,6 @@
 import os
+from ast import literal_eval
+
 from flask import Flask, request, jsonify
 from elasticsearch import Elasticsearch
 import utils
@@ -15,6 +17,7 @@ def test():
 
 
 @app.route('/index', methods=['POST', 'DELETE'])
+@utils.require_apikey
 def index():
     index = request.form.get('index')
     if not index:
@@ -34,6 +37,7 @@ def index():
 
 
 @app.route('/item', methods=['POST', 'DELETE'])
+@utils.require_apikey
 def insert_item():
     if request.method == "POST":
         text = request.form.get('text')
@@ -41,7 +45,7 @@ def insert_item():
         item_id = request.form.get('id')
 
         if not (text and index and item_id):
-            return jsonify(status='error', message='Missing parameter(s): text, index, or item_id'), 400
+            return jsonify(status='error', message='Missing parameter(s): text, index, or id'), 400
 
         try:
             vector = utils.get_vector_bert(text)
@@ -65,7 +69,34 @@ def insert_item():
             return jsonify(status='error', message=e.message), e.status_code
 
 
+@app.route('/bulk-insert', methods=['POST'])
+@utils.require_apikey
+def bulk_insert():
+    index = request.form.get('index')
+    items = request.form.get('items')
+
+    if not (items and index):
+        return jsonify(status='error', message='Missing parameter(s): items or index'), 400
+
+    items = literal_eval(items)
+
+    try:
+        for item in items:
+            try:
+                item_id = item['id']
+                vector = utils.get_vector_bert(item['text'])
+                doc = {"vector": vector}
+                ES_CLIENT.index(index=index, id=item_id, body=doc)
+            except Exception as e:
+                pass
+
+        return jsonify(status='success', message=f"Items bulk inserted successfully"), 200
+    except Exception as e:
+        return jsonify(status='error', message=e.message), e.status_code
+
+
 @app.route('/search', methods=['POST'])
+@utils.require_apikey
 def search():
     try:
         text = request.form.get('text')

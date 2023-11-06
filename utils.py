@@ -1,4 +1,24 @@
+from functools import wraps
+
+from flask import request, jsonify
+
 from transformers import BertTokenizer, BertModel
+
+
+def is_valid_apikey(provided_key):
+    return True
+
+
+def require_apikey(view_function):
+    @wraps(view_function)
+    def decorated_function(*args, **kwargs):
+        provided_key = request.headers.get('x-api-key')
+        if provided_key and is_valid_apikey(provided_key):
+            return view_function(*args, **kwargs)
+        else:
+            return jsonify({"error": "API key is missing or incorrect"}), 401
+    return decorated_function
+
 
 def get_vector_bert(text):
     # Load pre-trained BERT tokenizer and model
