@@ -1,4 +1,6 @@
 import os
+import json
+
 from ast import literal_eval
 
 from flask import Flask, request, jsonify
@@ -33,7 +35,7 @@ def index():
             ES_CLIENT.indices.delete(index=index)
             return jsonify(status='success', message=f"Index '{index}' deleted successfully"), 200
     except Exception as e:
-        return jsonify(status='error', message=e.message), e.status_code
+        return jsonify(status='error', message=str(e)), e.status_code
 
 
 @app.route('/item', methods=['POST', 'DELETE'])
@@ -48,12 +50,13 @@ def insert_item():
             return jsonify(status='error', message='Missing parameter(s): text, index, or id'), 400
 
         try:
+            text = utils.preprocess_text(text)
             vector = utils.get_vector_bert(text)
-            doc = {"vector": vector}
+            doc = {"vector": vector, "original_text": text}
             ES_CLIENT.index(index=index, id=item_id, body=doc)
             return jsonify(status='success', message=f"Item has been inserted successfully"), 200
         except Exception as e:
-            return jsonify(status='error', message=e.message), e.status_code
+            return jsonify(status='error', message=str(e)), e.status_code
 
     if request.method == "DELETE":
         index = request.form.get('index')
@@ -66,22 +69,27 @@ def insert_item():
             ES_CLIENT.delete(index=index, id=item_id)
             return jsonify(status='success', message=f'Item {item_id} deleted successfully from Index {index}'), 200
         except Exception as e:
-            return jsonify(status='error', message=e.message), e.status_code
+            return jsonify(status='error', message=str(e)), e.status_code
 
 
 @app.route('/bulk-insert', methods=['POST'])
 @utils.require_apikey
 def bulk_insert():
-    index = request.form.get('index')
-    items = request.form.get('items')
+    index = request.form['index']
+    items = request.form['items']
 
     if not (items and index):
         return jsonify(status='error', message='Missing parameter(s): items or index'), 400
 
+    items = utils.preprocess_text(items) 
+    print(items, type(items))
     items = literal_eval(items)
-
+    print(items, type(items))
     try:
         for item in items:
+            print(item, type(item));
+            item = json.loads(item);
+        
             try:
                 item_id = item['id']
                 vector = utils.get_vector_bert(item['text'])
@@ -92,7 +100,7 @@ def bulk_insert():
 
         return jsonify(status='success', message=f"Items bulk inserted successfully"), 200
     except Exception as e:
-        return jsonify(status='error', message=e.message), e.status_code
+        return jsonify(status='error', message=str(e)), e.status_code
 
 
 @app.route('/search', methods=['POST'])
@@ -101,13 +109,22 @@ def search():
     try:
         text = request.form.get('text')
         index = request.form.get('index')
+
+        if not (text and index):
+            return jsonify(status='error', message='Missing parameter(s): text or index'), 400
+        
+        text = utils.preprocess_text(text)
+        k = 6 if not request.form.get('k') else request.form.get('k') + 1
+        min_score = 0.95 if not request.form.get('min_score') else request.form.get('min_score')
+        
         query_vector = utils.get_vector_bert(text)
-        search_query = utils.get_search_query(query_vector)
+        search_query = utils.get_search_query(query_vector, k, min_score)
 
         response = ES_CLIENT.search(index=index, body=search_query)
+        print(response)
         return jsonify(status='success', result=response.get('hits', [])), 200
     except Exception as e:
-        return jsonify(status='error', message=e.message), e.status_code
+        return jsonify(status='error', message=str(e)), e.status_code
 
 
 

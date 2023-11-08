@@ -1,8 +1,19 @@
+import re
 from functools import wraps
 
 from flask import request, jsonify
 
-from transformers import BertTokenizer, BertModel
+from transformers import BertTokenizer, BertModel, XLNetTokenizer, XLNetModel
+
+
+# Load pre-trained BERT tokenizer and model
+tokenizer = BertTokenizer.from_pretrained('bert-base-cased')
+model = BertModel.from_pretrained('bert-base-cased')
+
+def preprocess_text(text):
+    text = text.lower()
+    text = re.sub(r'\s+', ' ', text).strip()
+    return text
 
 
 def is_valid_apikey(provided_key):
@@ -21,9 +32,7 @@ def require_apikey(view_function):
 
 
 def get_vector_bert(text):
-    # Load pre-trained BERT tokenizer and model
-    tokenizer = BertTokenizer.from_pretrained('bert-base-uncased')
-    model = BertModel.from_pretrained('bert-base-uncased')
+    text = preprocess_text(text)
 
     # Encode text_task1
     inputs = tokenizer(text, return_tensors="pt")
@@ -31,12 +40,14 @@ def get_vector_bert(text):
 
     # Only take the embeddings of the [CLS] token (the first token)
     vector = outputs.last_hidden_state[:, 0, :].detach().numpy()
+    print(len(vector[0]))
     return vector[0]
+
 
 def get_index_mapping():
     return {
         "settings": {
-            "number_of_shards": 1,
+            "number_of_shards": 2,
             "number_of_replicas": 0
         },
         "mappings": {
@@ -46,19 +57,23 @@ def get_index_mapping():
                     "dims": 768,
                     "index": "true",
                     "similarity": "cosine"
+                },
+                "original_text": {
+                    "type": "text"
                 }
             }
         }
     }
 
 
-def get_search_query(query_vector):
+def get_search_query(query_vector, k, min_score):
     return {
         "knn": {
             "field": "vector",
             "query_vector": query_vector,
-            "k": 10,
-            "num_candidates": 100,
+            "k": k,
+            "num_candidates": 10,
         },
-        "min_score": 0.8
+        "min_score": min_score,
+        "_source": False
     }
