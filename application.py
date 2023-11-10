@@ -35,7 +35,7 @@ def index():
             ES_CLIENT.indices.delete(index=index)
             return jsonify(status='success', message=f"Index '{index}' deleted successfully"), 200
     except Exception as e:
-        return jsonify(status='error', message=str(e)), e.status_code
+        return jsonify(status='error', message=str(e)), 500
 
 
 @app.route('/item', methods=['POST', 'DELETE'])
@@ -56,7 +56,7 @@ def insert_item():
             ES_CLIENT.index(index=index, id=item_id, body=doc)
             return jsonify(status='success', message=f"Item has been inserted successfully"), 200
         except Exception as e:
-            return jsonify(status='error', message=str(e)), e.status_code
+            return jsonify(status='error', message=str(e)), 500
 
     if request.method == "DELETE":
         index = request.form.get('index')
@@ -69,7 +69,7 @@ def insert_item():
             ES_CLIENT.delete(index=index, id=item_id)
             return jsonify(status='success', message=f'Item {item_id} deleted successfully from Index {index}'), 200
         except Exception as e:
-            return jsonify(status='error', message=str(e)), e.status_code
+            return jsonify(status='error', message=str(e)), 500
 
 
 @app.route('/bulk-insert', methods=['POST'])
@@ -100,7 +100,7 @@ def bulk_insert():
 
         return jsonify(status='success', message=f"Items bulk inserted successfully"), 200
     except Exception as e:
-        return jsonify(status='error', message=str(e)), e.status_code
+        return jsonify(status='error', message=str(e)), 500
 
 
 @app.route('/search', methods=['POST'])
@@ -124,7 +124,7 @@ def search():
         print(response)
         return jsonify(status='success', result=response.get('hits', [])), 200
     except Exception as e:
-        return jsonify(status='error', message=str(e)), e.status_code
+        return jsonify(status='error', message=str(e)), 500
 
 
 
